@@ -249,11 +249,6 @@ class App_GetNeeds:
         
         # declare figure object
         fig = plt.figure(figsize=(15, 17))
-        
-        # Declare figure axis to hold table of forecasted cases, visits, admits
-        ax = plt.subplot2grid((6, 4), (0, 2), colspan=2, rowspan=2)
-        # The figure will actually be a table so turn the figure axes off
-        ax.axis('off')
 
         # shorten location name if longer than 12 characters
         loc = str(focal_loc)
@@ -261,29 +256,15 @@ class App_GetNeeds:
             loc = loc[:12]
             loc = loc + '...'
 
-        # declare column labels
-        col_labels = ['Total cases', 'New cases', 'New visits', 'New admits']
-
-        # row labels are the dates
-        row_labels = fdates.tolist()  
-        
-        # truncate forecasted_y to only the current day and days 
-        # in the forecast window
-        
-        # lists to hold table values
-        table_vals = []
-        cclr_vals = []
-        rclr_vals = []
-        
         #### Inclusion of time lag
-        # time lag is modeled as a Poisson distributed 
+        # time lag is modeled as a Poisson distributed
         # random variable with a mean chosen by the user (TimeLag)
         new_cases_lag = []
         x = list(range(len(forecasted_y)))
         for i in new_cases:
             lag_pop = i*poisson.pmf(x, TimeLag)
             new_cases_lag.append(lag_pop)
-         
+
         # Declare a list to hold time-staggered lists
         # This will allow the time-lag effects to
         # be summed across rows (days)
@@ -296,329 +277,63 @@ class App_GetNeeds:
             bi = [0]*diff
             ls = list(fi) + list(daily_vals) + list(bi)
             lol.append(np.array(ls))
-        
+
         # convert the list of time-staggered lists to an array
         ar = np.array(lol)
-        
+
         # get the time-lagged sum of visits across days
         ts_lag = np.sum(ar, axis=0)
         # upper truncate for the number of days in observed y values
         ts_lag = ts_lag[:len(new_cases)]
         ts_lag = ts_lag[:len(new_cases)]
-        
-        # row labels are the dates
-        row_labels = fdates.tolist()  
-        # only show the current date and dates in the forecast window
-        row_labels = row_labels[-(ForecastDays+1):]
-        
-        # lower truncate lists for forecast window
-        # that is, do not include days before present day
-        new_cases = new_cases[-(ForecastDays+1):]
-        forecasted_y = forecasted_y[-(ForecastDays+1):]
-        ts_lag2 = ts_lag[-(ForecastDays+1):]
-        
-        # Declare pandas dataframe to hold data for download
-        Forecasted_cases_df_for_download = pd.DataFrame(columns = ['date'] + col_labels)
-        
-        # For each date intended for the output table
-        
-        Total = []
-        New = []
-        Visits = []
-        Admits = []
-        for i in range(len(row_labels)):
-            
-            new = new_cases[i]
-            val = ts_lag2[i]
-            
-            # each cell is a row with 4 columns:
-            #     Total cases, 
-            #     new cases, 
-            #     time-lagged visits to your hospital,
-            #     time-lagged admits to your hospital
-            
-            cell = [int(np.round(forecasted_y[i])), 
-                    int(np.round(new)), 
-                    int(np.round(val * (per_loc * 0.01))),
-                    int(np.round((0.01 * per_admit) * val * (per_loc * 0.01)))]
-            
-            Total.append(cell[0])
-            New.append(cell[1])
-            Visits.append(cell[2])
-            Admits.append(cell[3])
-            
-            # Add the row to the dataframe
-            df_row = [row_labels[i]]
-            df_row.extend(cell)
-            labs = ['date'] + col_labels
-            temp = pd.DataFrame([df_row], columns=labs)
-            Forecasted_cases_df_for_download = pd.concat([Forecasted_cases_df_for_download, temp])
-            
-            # color the first row grey and remaining rows white
-            if i == 0:
-                rclr = '0.8'
-                cclr = ['0.8', '0.8', '0.8', '0.8']
-            else:
-                rclr = 'w'
-                cclr = ['w', 'w', 'w', 'w']
-            table_vals.append(cell)
-            cclr_vals.append(cclr)
-            rclr_vals.append(rclr)
 
-        # Generate and customize table for output
-        ncol = 4
-        lim = 15
-            
-        the_table = plt.table(cellText=table_vals[0:lim],
-                        colWidths=[0.32, 0.32, 0.32, 0.32],
-                        rowLabels=row_labels[0:lim],
-                        colLabels=col_labels,
-                        cellLoc='center',
-                        loc='upper center',
-                        cellColours=cclr_vals[0:lim],
-                        rowColours =rclr_vals[0:lim])
-        
-        the_table.auto_set_font_size(True)
-        the_table.scale(1, 1.32)
-        
-        # Customize table title
-        titletext = 'Forecasted cases for '+ loc + '\nData beyond 14 days is available in the csv (below)'
-        plt.title(titletext, fontsize = 14, fontweight = 'bold')
-            
-        
-        
-        
-        ax = plt.subplot2grid((6, 4), (0, 0), colspan=2, rowspan=2)
-        
-        #plt.plot(row_labels, Total, c='0.2', label='Total cases', linewidth=3)
-        #plt.plot(row_labels, New, c='0.5', label='New cases', linewidth=3)
-        plt.plot(row_labels, Visits, c='Crimson', label='New visits', linewidth=3)
-        plt.plot(row_labels, Admits, c='Steelblue', label='New admits', linewidth=3)
-        
-        plt.title('Forecasted visits & admits', fontsize = 16, fontweight = 'bold')
-        
-        # log-scale y-values to base 10 if the user has chosen
-        #if log_scl == True:
-        #    plt.yscale('log')
-        
-        # As before, limit dates displayed on the x-axis
-        # prevents overcrowding
-        ax = plt.gca()
-        temp = ax.xaxis.get_ticklabels()
-        temp = list(set(temp) - set(temp[::12]))
-        for label in temp:
-            label.set_visible(False)
-            
-        # As before, remove legend line handles and change the color of 
-        # the text to match the color of the line
-        leg = ax.legend(handlelength=0, handletextpad=0, fancybox=False,
-                        loc='best', frameon=False, fontsize=14)
 
-        for line,text in zip(leg.get_lines(), leg.get_texts()):
-            text.set_color(line.get_color())
-
-        for item in leg.legendHandles: 
-            item.set_visible(False)
-        
-        plt.ylabel('COVID-19 cases', fontsize=14, fontweight='bold')
-        plt.xlabel('Date', fontsize=14, fontweight='bold')
-        
-        
-        
-        
-        
-        
-        
-        # Generate figure for patient census
-        ax = plt.subplot2grid((6, 4), (2, 0), colspan=2, rowspan=2)
-        
-        #### Construct arrays for critical care and non-critical care patients
-        cc = (0.01 * per_cc) * (0.01 * per_admit) * (0.01 * per_loc) * np.array(ts_lag)
-        cc = cc.tolist()
-        
-        nc = (1 - (0.01 * per_cc)) * (0.01 * per_admit) * (0.01 * per_loc) * np.array(ts_lag)
-        nc = nc.tolist()
-        
-        # LOS for non critical care = 5 days
-        # LOS for critical care = 10 days
-        
-        
-        
-        # Model length of stay (LOS) as a lognormally distributed
-        # random variable
-        
-        #sigma = 0.3
-        #n_cc = np.log(LOS_cc) - (sigma**2)/2
-        #n_nc = np.log(LOS_nc) - (sigma**2)/2
-    
-        #x_vars = np.array(list(range(1, len(fdates)+1)))
-        
-        #p_nc = 0.5 + 0.5 * sc.special.erf((np.log(x_vars) - n_nc)/(2**0.5*sigma))
-        #p_cc = 0.5 + 0.5 * sc.special.erf((np.log(x_vars) - n_cc)/(2**0.5*sigma))
-        
-        
-        # Model length of stay (LOS) as a binomially distributed
-        # random variable according to binomial parameters p and n
-        #    p: used to obtain a symmetrical distribution 
-        #    n: (n_cc & n_nc) = 2 * LOS will produce a binomial
-        #       distribution with a mean equal to the LOS
-        
         p = 0.1
         n_cc = LOS_cc*10
         n_nc = LOS_nc*10
-        
+
         # get the binomial random variable properties
         rv_nc = binom(n_nc, p)
         # Use the binomial cumulative distribution function
         p_nc = rv_nc.cdf(np.array(range(1, len(fdates)+1)))
-        
+
         # get the binomial random variable properties
         rv_cc = binom(n_cc, p)
         # Use the binomial cumulative distribution function
         p_cc = rv_cc.cdf(np.array(range(1, len(fdates)+1)))
-        
-        
-    
+
+
+
         # Initiate lists to hold numbers of critical care and non-critical care patients
         # who are expected as new admits (index 0), as 1 day patients, 2 day patients, etc.
         LOScc = np.zeros(len(fdates))
         LOScc[0] = ts_lag[0] * (0.01 * per_cc) * (0.01 * per_admit) * (0.01 * per_loc)
         LOSnc = np.zeros(len(fdates))
         LOSnc[0] =  ts_lag[0] * (1-(0.01 * per_cc)) * (0.01 * per_admit) * (0.01 * per_loc)
-        
+
         total_nc = []
         total_cc = []
-        
+
         # Roll up patient carry-over into lists of total critical care and total
         # non-critical patients expected
         for i, day in enumerate(fdates):
             LOScc = LOScc * (1 - p_cc)
             LOSnc = LOSnc * (1 - p_nc)
-            
+
             LOScc = np.roll(LOScc, shift=1)
             LOSnc = np.roll(LOSnc, shift=1)
-            
+
             LOScc[0] = ts_lag[i] * (0.01 * per_cc) * (0.01 * per_admit) * (0.01 * per_loc)
             LOSnc[0] = ts_lag[i] * (1 - (0.01 * per_cc)) * (0.01 * per_admit) * (0.01 * per_loc)
-    
+
             total_nc.append(np.sum(LOSnc))
             total_cc.append(np.sum(LOScc))
-            
-        # Plot the critical care and non-critical care patient census over the 
-        # forecasted time frame
+
+        # # Plot the critical care and non-critical care patient census over the
+        # # forecasted time frame
         plt.plot(fdates[-(ForecastDays+1):], total_cc[-(ForecastDays+1):], c='m', label='Critical care', linewidth=3)
         plt.plot(fdates[-(ForecastDays+1):], total_nc[-(ForecastDays+1):], c='0.4', label='Non-critical care', linewidth=3)
-        plt.title('Forecasted census', fontsize = 16, fontweight = 'bold')
-        
-        # log-scale y-values to base 10 if the user has chosen
-        #if log_scl == True:
-        #    plt.yscale('log')
-        
-        # As before, limit dates displayed on the x-axis
-        # prevents overcrowding
-        ax = plt.gca()
-        temp = ax.xaxis.get_ticklabels()
-        temp = list(set(temp) - set(temp[::12]))
-        for label in temp:
-            label.set_visible(False)
-            
-        # As before, remove legend line handles and change the color of 
-        # the text to match the color of the line
-        leg = ax.legend(handlelength=0, handletextpad=0, fancybox=False,
-                        loc='best', frameon=False, fontsize=14)
 
-        for line,text in zip(leg.get_lines(), leg.get_texts()):
-            text.set_color(line.get_color())
-
-        for item in leg.legendHandles: 
-            item.set_visible(False)
-        
-        plt.ylabel('COVID-19 patients', fontsize=14, fontweight='bold')
-        plt.xlabel('Date', fontsize=14, fontweight='bold')
-        
-        
-        
-        
-        # Declare axis to be used for patient census table
-        # and turn the visibility off
-        ax = plt.subplot2grid((6, 4), (2, 2), colspan=2, rowspan=2)
-        ax.axis('off')
-        
-        # Truncate location names if longer than 12 characters
-        if len(loc) > 12:
-            loc = loc[:12]
-            loc = loc + '...'
-
-        # declare table column labels
-        col_labels = ['All COVID', 'Non-ICU', 'ICU', 'Vent']
-
-        # declare row labels as dates
-        row_labels = fdates.tolist()
-        
-        # truncate row labels and values to the present day
-        # and days in the forecast window
-        row_labels = row_labels[-(ForecastDays+1):]
-        total_nc_trunc = total_nc[-(ForecastDays+1):]
-        total_cc_trunc = total_cc[-(ForecastDays+1):]
-        
-        # declare lists to hold table cell values and
-        # row colors
-        table_vals, cclr_vals, rclr_vals = [], [], []
-        
-        # declare pandas dataframe to hold patient census data for download
-        Forecasted_patient_census_df_for_download = pd.DataFrame(columns = ['date'] + col_labels)
-        # For each row...
-        for i in range(len(row_labels)):
-            # Each cell is a row that holds:
-            #    Total number of admits expected,
-            #    Total number of non-critical care COVID-19 patients expected
-            #    Total number of critical care COVID-19 patents expected
-            #    Total number of ICU patients on ventilators expected
-            cell = [int(np.round(total_nc_trunc[i] + total_cc_trunc[i])), 
-                    int(np.round(total_nc_trunc[i])),
-                    int(np.round(total_cc_trunc[i])), 
-                    int(np.round(total_cc_trunc[i]*(0.01*per_vent)))]
-            
-            # add the cell to the dataframe intended for csv download
-            df_row = [row_labels[i]]
-            df_row.extend(cell)
-            labs = ['date'] + col_labels
-            temp = pd.DataFrame([df_row], columns=labs)
-            Forecasted_patient_census_df_for_download = pd.concat([Forecasted_patient_census_df_for_download, temp])
-            
-            # set colors of rows
-            if i == 0:
-                rclr = '0.8'
-                cclr = ['0.8', '0.8', '0.8', '0.8']
-            else:
-                rclr = 'w'
-                cclr = ['w', 'w', 'w', 'w']
-                
-            # append cells and colors to respective lists
-            table_vals.append(cell)
-            cclr_vals.append(cclr)
-            rclr_vals.append(rclr)
-            
-        # limit the number of displayed table rows    
-        ncol = 4
-        lim = 15
-        
-        # declare and customize the table
-        the_table = plt.table(cellText=table_vals[0:lim],
-                        colWidths=[0.255, 0.255, 0.255, 0.255],
-                        rowLabels=row_labels[0:lim],
-                        colLabels=col_labels,
-                        cellLoc='center',
-                        loc='upper center',
-                        cellColours=cclr_vals[0:lim],
-                        rowColours =rclr_vals[0:lim])
-        
-        the_table.auto_set_font_size(True)
-        the_table.scale(1, 1.32)
-        
-        # Set the plot (table) title
-        titletext = 'Beds needed for COVID-19 cases' + '\nData beyond 14 days is available in the csv (below)'
-        plt.title(titletext, fontsize = 14, fontweight = 'bold')
             
         
         
@@ -808,4 +523,3 @@ class App_GetNeeds:
         
         plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=1.1, hspace=1.1)
         return Forecasted_cases_df_for_download, Forecasted_patient_census_df_for_download, Forecasted_ppe_needs_df_for_download
-        
